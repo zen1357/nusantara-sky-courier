@@ -308,11 +308,15 @@ export function stepParked(ac, dt) {
 /** Apply the flight state to the visible mesh. */
 export function posePlane(mesh, prop, ac, t) {
   mesh.group.position.copy(ac.pos);
-  // Model faces -z; rotate so heading 0 points north (-z).
+  // Model faces -z; rotate so the nose points along the sim heading.
+  // Heading is a compass heading (0 = north, -z): the model's yaw is the
+  // NEGATIVE of the heading, because rotateY(h) would mirror it (the model
+  // would face -h, i.e. fly backwards at east/west headings). Pitch is
+  // positive nose-up and roll is positive bank-right, matching the sim.
   mesh.group.rotation.set(0, 0, 0);
-  mesh.group.rotateY(ac.heading);
-  mesh.group.rotateX(-ac.pitch);
-  mesh.group.rotateZ(ac.roll);
+  mesh.group.rotateY(-ac.heading);
+  mesh.group.rotateX(ac.pitch);
+  mesh.group.rotateZ(-ac.roll);
   // Engine vibration and prop spin scale with throttle.
   const spin = (2 + ac.throttle * 38) * (ac.fuel > 0 ? 1 : 0.05);
   prop.rotation.z += spin * 0.016;

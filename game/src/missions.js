@@ -21,6 +21,10 @@ export function createMission(missionId) {
     won: false,
     over: false,
     endReason: '',
+    // Perfect-ring tracking: the pass registers the moment the plane enters
+    // the 16 m sphere, so the bonus is judged on the closest approach while
+    // flying through it (see stepMission), not on the entry distance.
+    pendingPerfect: null,
     // Timed mode: rings appear one at a time at scattered spots.
     timedRing: null,
     timedRingIndex: 0,
@@ -79,17 +83,30 @@ export function stepMission(m, ac, dt, events) {
   }
 
   // Ring pass: within the torus, close to its plane, flying roughly through it.
+  // A pending perfect bonus resolves when the plane leaves the sphere the
+  // pass was scored in: the bonus is for the closest approach while flying
+  // through, and the pass itself registers on entry (~16 m out), so judging
+  // it on the entry distance would make it unreachable. (The final ring of
+  // a won course never resolves its pending bonus — the win takes precedence.)
+  if (m.pendingPerfect) {
+    const p = m.pendingPerfect;
+    const pd = Math.hypot(ac.pos.x - p.x, ac.pos.y - p.y, ac.pos.z - p.z);
+    p.closest = Math.min(p.closest, pd);
+    if (pd > 16) {
+      if (p.closest < 7) {
+        m.score += SCORING.perfectRingBonus;
+        out.push('perfect');
+      }
+      m.pendingPerfect = null;
+    }
+  }
   const ring = currentRing(m);
   if (ring) {
     const d = Math.hypot(ac.pos.x - ring.x, ac.pos.y - ring.y, ac.pos.z - ring.z);
     if (d < 16) {
-      const centreDist = Math.hypot(
-        ac.pos.x - ring.x, ac.pos.y - ring.y, ac.pos.z - ring.z,
-      );
-      let pts = SCORING.ringPoints;
-      if (centreDist < 7) pts += SCORING.perfectRingBonus;
-      m.score += pts;
+      m.score += SCORING.ringPoints;
       m.ringsPassed += 1;
+      m.pendingPerfect = { x: ring.x, y: ring.y, z: ring.z, closest: d };
       out.push('ring');
       if (m.id === 'timed') {
         m.timedRingIndex += 1;
@@ -124,8 +141,11 @@ export function stepMission(m, ac, dt, events) {
     }
   }
 
-  // Any landing pays a small gentle-touchdown bonus (once per landing).
-  if (events.includes('landed') && m.id !== 'delivery') {
+  // A gentle touchdown ON AN AIRSTRIP pays a small bonus (once per landing).
+  // Touching down on a beach or a field does not — the bonus is for flying
+  // the plane to a strip, and gating it stops beach-bounce score farming
+  // (repeated gentle off-strip touchdowns each paid +50 before this).
+  if (events.includes('landed') && m.id !== 'delivery' && stripAt(ac.pos.x, ac.pos.z)) {
     m.score += SCORING.landingBonus;
   }
 

@@ -2,7 +2,7 @@
 // Wires the flight model, terrain, sky, HUD, missions, input and audio
 // together; owns the chase camera, the screens, and the ?shot= staging hook.
 import * as THREE from '../vendor/three.module.min.js';
-import { WORLD, BEST_KEY, MISSIONS } from './config.js';
+import { WORLD, BEST_KEY, MISSIONS, SCORING } from './config.js';
 import { buildTerrain } from './terrain.js';
 import { buildSky } from './sky.js';
 import { buildPlaneMesh, createAircraft, stepFlight, stepParked, posePlane, placeOnStrip, FLIGHT } from './aircraft.js';
@@ -175,6 +175,10 @@ function handleEvents(events) {
       playChime(audio);
       showMessage(ui, `💍 RING ${m.ringsPassed}! +${m.id === 'timed' ? 100 : 100}`, 1400);
     }
+    if (ev === 'perfect') {
+      playChime(audio);
+      showMessage(ui, `🎯 DEAD CENTRE! +${SCORING.perfectRingBonus}`, 1600);
+    }
     if (ev === 'delivery') {
       playChime(audio);
       showMessage(ui, `📦 CARGO DELIVERED — ${m.deliveriesDone}/3 · +300`, 2200);
@@ -233,7 +237,10 @@ let last = performance.now();
 let fpsAccum = 0, fpsCount = 0;
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.05, (now - last) / 1000);
+  // Clamp dt to [0, 0.05]: a negative step (a clock jump in a throttled or
+  // headless tab) would run the sim backwards and drive the chase camera
+  // away from the plane instead of toward it.
+  const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
   last = now;
   game.time += dt;
 

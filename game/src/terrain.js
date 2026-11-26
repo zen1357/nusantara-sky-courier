@@ -200,15 +200,24 @@ export function buildTerrain(scene) {
   }
 
   // --- Golden rings (built by missions.js logic, meshes here). ---
+  // Each ring faces the direction the course arrives from (the previous
+  // ring, or Merdeka Field for ring 1), so the hole reads as a circle from
+  // the chase camera on the approach — a north-facing ring flown at from
+  // the west is edge-on and nearly invisible as a target.
   const ringGroup = new THREE.Group();
   ringGroup.name = 'rings';
   for (let i = 0; i < RING_COURSE.length; i++) {
     const p = RING_COURSE[i];
+    const prev = i === 0 ? AIRSTRIPS[0] : RING_COURSE[i - 1];
+    const dx = p.x - prev.x, dz = p.z - prev.z;
+    const len = Math.hypot(dx, dz) || 1;
     const ring = new THREE.Mesh(
       new THREE.TorusGeometry(16, 1.6, 12, 40),
       new THREE.MeshStandardMaterial({ color: PALETTE.ring, emissive: PALETTE.ringGlow, emissiveIntensity: 0.7, metalness: 0.6, roughness: 0.3 }),
     );
     ring.position.set(p.x, p.y, p.z);
+    // Torus axis is +z; rotate it onto the approach direction.
+    ring.rotation.y = Math.atan2(dx / len, dz / len);
     ring.name = `ring-${i}`;
     ringGroup.add(ring);
     // A slim pole down to the water so the ring reads at distance.
